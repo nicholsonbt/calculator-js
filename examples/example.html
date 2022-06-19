@@ -2,13 +2,13 @@
 <html>
 	<head>
 		<script src="../calculator.js"></script>
+		<script src="../comparing-js/comparing.js"></script>
 
 		<script type="application/javascript">
 			window.addEventListener('load', function(e) {
-				let frac = new Fraction(21,6);
-				console.log(frac.numerator + " / " + frac.denominator);
+				console.log(CALC.Parse("-2*-(3+5*-1)-2(35/2)(4--2)")); // = -214
 				
-				console.log(CALC.Gcd(6, 12, 3, 24));
+				
 			});
 		</script>
 	</head>

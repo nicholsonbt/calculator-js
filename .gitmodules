@@ -1,0 +1,3 @@
+[submodule "comparing-js"]
+	path = comparing-js
+	url = https://github.com/nicholsonbt/comparing-js.git
