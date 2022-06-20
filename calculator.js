@@ -1,360 +1,323 @@
-CALC = {};
-CALC.GRAMMAR = {};
+var calculator;
+
+function addChar(displayChar, valueChar) {
+	document.getElementById("display").innerHTML += displayChar;
+	x += valueChar;
+}
+
+function clearDisplay() {
+	console.log("Clear");
+	document.getElementById("display").innerHTML = "";
+	x = "";
+}
+
+function solve() {
+	calculator.Solve("2");
+	calculator.Solve("-98.6*67 (-3/(2-4)+-1)/3/4+7- sin(5%2)");
+	calculator.Solve("56.sin(X)>=2");
+}
 
 
-function Symbol(type, value) {
+
+window.addEventListener('load', function(e) {
+	// Secondary tokens: operator, number, string_lower, variable.
+	// String tokens: function, constants.
+	// Main tokens: functions (functions and operators), arguments (numbers, variables, constants).
+	
+	let x = new CalculatorSettings();
+
+	x.AddValdCharacters("left_parenthesis", '(');
+	x.AddValdCharacters("right_parenthesis", ')');
+	x.AddValdCharacters("operator", ['!', '%', '*', '+', '-', '/', '^']);
+	x.AddValdCharacters("comma", ',');
+	x.AddValdCharacters("period", '.');
+	x.AddValdCharacters("number", ['0','1','2','3','4','5','6','7','8','9']);
+	x.AddValdCharacters("equality", ['<', '=', '>']);
+	x.AddValdCharacters("variable", ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']);
+	x.AddValdCharacters("string", ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']);
+	x.AddValdCharacters("whitespace", String.fromCharCode(9, 10, 11, 12, 13, 32, 133, 160, 5760, 6158, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8203, 8204, 8205, 8232, 8233, 8239, 8287, 8288, 12288, 65279).split(''));
+
+	x.AddJoin(0, "number", "number", "number", (a, b) => a + b);
+	x.AddJoin(0, "string", "string", "string", (a, b) => a + b);
+	x.AddJoin(0, "number", "period", "number", (a, b) => a + b);
+	x.AddJoin(0, "period", "number", "number", (a, b) => a + b);
+	x.AddJoin(0, "equality", "equality", "equality", (a, b) => a + b);
+	
+	x.AddRemove(0, "whitespace");
+	
+	// Remove whitespace first:
+	x.AddInsert(1, "number", "left_parenthesis", "operator", '*');
+	x.AddInsert(1, "number", "string", "operator", '*');
+	x.AddInsert(1, "number", "variable", "operator", '*');
+	x.AddInsert(1, "right_parenthesis", "left_parenthesis", "operator", '*');
+	x.AddInsert(1, "right_parenthesis", "string", "operator", '*');
+	x.AddInsert(1, "right_parenthesis", "variable", "operator", '*');
+	x.AddInsert(1, "variable", "variable", "operator", '*');
+	
+	calculator = new Calculator(x);
+});
+
+
+
+
+function CalculatorSettings() {
+	this.Tokens = [];
+	this.CharTokenTable = {};
+	this.JoinTokenTable = [];
+	this.InsertTokenTable = [];
+	this.RemoveTokenTable = [];
+}
+
+/**
+ * Adds all values to CharTokenTable and assigns them the given type.
+ *
+ * @param {string} type The type to assign to all values.
+ * @param {Array<char>} values An array of characters to be added as properties to CharTokenTable.
+ */
+CalculatorSettings.prototype.AddValdCharacters = function(type, values) {
+	let n = values.length;
+	
+	// For each value in each key, add the <key, value> pair where <key> = charTokenValue and <value> = charTokenType.
+	// This means each token value will map to its token type, instead of each token type mapping to an array of token values.
+	// This should speed up the assignment of character tokens.
+	for (let i = 0; i < n; i++) {
+		// If the token value hasn't already been added to the dictionary, add it.
+		if (!this.CharTokenTable.hasOwnProperty(values[i])) {
+			this.CharTokenTable[values[i]] = type;
+		}
+		// If the token value has already been added to the dictionary, and the type it has been assigned is different to the
+		// current type to be assigned, throw an error because a character token can only ever have one type assigned to it.
+		else if (this.CharTokenTable[values[i]] != type) {
+			console.warn("ERROR: Overriding the token associated with value " + values[i] + " from " + this.CharTokenTable[values[i]] + " to " + type + ".");
+			this.CharTokenTable[values[i]] = type;
+		}
+		// If the token value has already been added to the dictionary, but it was assigned the same type as is currently being
+		// assigned, give a warning that a character value is repeated in the token list and then continue, as it causes no problems.
+		else {
+			console.warn("WARNING: Value " + values[i] + " was found twice in the character token list: " + type + ".");
+		}
+	}
+	
+	if (!this.Tokens.includes(type))
+		this.Tokens.push(type);
+}
+
+CalculatorSettings.prototype.AddJoin = function(iteration, leftToken, rightToken, newToken, valueFunction) {
+	if (!this.Tokens.includes(leftToken))
+		console.error("ERROR: Token: " + leftToken + " hasn't been added to the tokens table.");
+	
+	if (!this.Tokens.includes(rightToken))
+		console.error("ERROR: Token: " + rightToken + " hasn't been added to the tokens table.");
+	
+	if (!this.Tokens.includes(newToken))
+		console.error("ERROR: Token: " + newToken + " hasn't been added to the tokens table.");
+	
+	while (this.JoinTokenTable.length <= iteration) {
+		this.JoinTokenTable.push({});
+	}
+	
+	if (!this.JoinTokenTable[iteration].hasOwnProperty(leftToken))
+		this.JoinTokenTable[iteration][leftToken] = {};
+	
+	if (!this.JoinTokenTable[iteration][leftToken].hasOwnProperty(rightToken)) {
+		this.JoinTokenTable[iteration][leftToken][rightToken] = { joinToken: newToken, func: valueFunction };
+	} else {
+		let join = this.JoinTokenTable[iteration][leftToken][rightToken];
+		
+		if (join.joinToken == newToken) {
+			console.warn("WARNING: Overriding the function for a join between a " + leftToken + " token and " + rightToken + " token on iteration " + iteration + " (resulting in a " + newToken + ").");
+			join.func = valueFunction;
+		}
+		else {
+			console.warn("WARNING: Overriding the function and result for a join between a " + leftToken + " token and " + rightToken + " token on iteration " + iteration + " (previously resulting in a " + join.joinToken + ", now a " + newToken + ").");
+			join.joinToken = newToken;
+			join.func = valueFunction;
+		}
+	}
+}
+
+CalculatorSettings.prototype.AddInsert = function(iteration, leftToken, rightToken, newToken, tokenValue) {
+	if (!this.Tokens.includes(leftToken))
+		console.error("ERROR: Token: " + leftToken + " hasn't been added to the tokens table.");
+	
+	if (!this.Tokens.includes(rightToken))
+		console.error("ERROR: Token: " + rightToken + " hasn't been added to the tokens table.");
+	
+	if (!this.Tokens.includes(newToken))
+		console.error("ERROR: Token: " + newToken + " hasn't been added to the tokens table.");
+	
+	while (this.InsertTokenTable.length <= iteration) {
+		this.InsertTokenTable.push({});
+	}
+	
+	if (!this.InsertTokenTable[iteration].hasOwnProperty(leftToken))
+		this.InsertTokenTable[iteration][leftToken] = {};
+	
+	if (!this.InsertTokenTable[iteration][leftToken].hasOwnProperty(rightToken)) {
+		this.InsertTokenTable[iteration][leftToken][rightToken] = { insertToken: newToken, value: tokenValue };
+	} else {
+		let insert = this.InsertTokenTable[iteration][leftToken][rightToken];
+		
+		if (insert.joinToken == newToken) {
+			console.warn("WARNING: Overriding the function for an insert between a " + leftToken + " token and " + rightToken + " token on iteration " + iteration + " (resulting in a " + newToken + ").");
+			insert.value = valueFunction;
+		}
+		else {
+			console.warn("WARNING: Overriding the function and result for an insert between a " + leftToken + " token and " + rightToken + " token on iteration " + iteration + " (previously resulting in a " + insert.insertToken + ", now a " + newToken + ").");
+			insert.insertToken = newToken;
+			insert.value = valueFunction;
+		}
+	}
+}
+
+CalculatorSettings.prototype.AddRemove = function(iteration, token) {
+	if (!this.Tokens.includes(token))
+		console.error("ERROR: Token: " + token + " hasn't been added to the tokens table.");
+	
+	while (this.RemoveTokenTable.length <= iteration) {
+		this.RemoveTokenTable.push([]);
+	}
+	
+	if (!this.RemoveTokenTable[iteration].includes(token))
+		this.RemoveTokenTable[iteration].push(token);
+}
+
+
+
+
+function Calculator(calculatorSettings) {
+	this.settings = calculatorSettings;
+}
+
+Calculator.prototype.Solve = function(calculation) {
+	let lexicalAnalysis = this.Scan(calculation);
+	console.log(lexicalAnalysis);
+}
+
+Calculator.prototype.Token = function(type, value) {
 	this.type = type;
 	this.value = value;
-	
-	this.toString = function() {
-		return this.type + ", " + this.value;
+}
+
+Calculator.prototype.Tokenize = function(arr) {
+	let n = arr.length;
+	let array = [];
+		
+	// Foreach character in the calculation, get it's token type and create a token.
+	for (let i = 0; i < n; i++) {
+		let value = arr[i];
+		array.push(new this.Token(this.settings.CharTokenTable[value], value));
 	}
+		
+	return array;
 }
 
-function InsertionIndex(index) {
-	this.index = index;
-	this.func = null;
-	this.params = [];
-	
-	if (arguments.length > 1)
-		this.func = arguments[1];
-	
-	this.params = Array.prototype.slice.call(arguments);
-	this.params.splice(0, 2);
-}
-
-function Operator(unary, value) {
-	this.type = "operator";
-	this.unary = unary;
-	this.value = value;
-	
-	this.toString = function() {
-		return this.type + ", " + this.value + ", " + this.unary;
-	}
-}
-
-CALC.GRAMMAR.ToSymbolArray = function(str, symbols) {
-	arr = [new Symbol("start", null)];
-	
-	for (let i = 0; i < str.length; i++) {
-		for (let [key, values] of Object.entries(symbols)) {
-			if (values.includes(str[i]))
-				if (arr.length != i + 1)
-					throw "Found a character with multiple or no symbols";
-				else
-					arr.push(new Symbol(key, str[i]));
+Calculator.prototype.ScanCombine = function(arr, iteration) {
+	function GetJoin(joinTable, prev, next) {
+		try {
+			return joinTable[iteration][prev][next];
+		} catch (err) {
+			return null;
 		}
 	}
 	
-	return arr;
-}
-
-CALC.GRAMMAR.Options = function(partialArray) {
-	let options = [];
+	let type;
+	let prevType = null;
+	let k = -1;
+	let n = arr.length;
+	let array = [];
 	
-	let n = partialArray.length;
-	
-	for (let i = 0; i < Math.pow(2, n); i++) {
-		let value = i;
-		let arr = [];
+	// Foreach token in the array, if the token can be joined with others of the same type, do so.
+	for (let i = 0; i < n; i++) {
+		type = arr[i].type;
 		
-		for (let j = n - 1; j >= 0; j--) {
-			if (value >= Math.pow(2, j)) {
-				value -= Math.pow(2, j);
-				arr.unshift(partialArray[j].type);
-			} else {
-				arr.unshift(partialArray[j].value);
-			}
+		let x = GetJoin(this.settings.JoinTokenTable, prevType, type);
+		
+		if (x == null) {
+			array.push(arr[i]);
+			prevType = type;
 		}
-		
-		options.push(arr);
-	}
-	
-	return options;
-}
-
-CALC.GRAMMAR.IsInOptions = function(options, array) {
-	for (let i = 0; i < options.length; i++) {
-		if (COMPARE.Equals(options[i], array))
-			return true;
-	}
-	
-	return false;
-}
-
-CALC.GRAMMAR.CombineSymbols = function(symbols, newType) {
-	let value = "";
-	
-	for (let i = 0; i < symbols.length; i++)
-		value += symbols[i].value;
-	
-	return new Symbol(newType, value);
-}
-
-
-CALC.GRAMMAR.GetMaxSearchLength = function(grammar) {
-	let maxLength = 0;
-	
-	for (let [key, arrayOfArrays] of Object.entries(grammar)) {
-		for (let k = 0; k < arrayOfArrays.length; k++) {
-			if (arrayOfArrays[k].length > maxLength)
-				maxLength = arrayOfArrays[k].length;
-		}
-	}
-	
-	return maxLength;
-}
-
-CALC.GRAMMAR.CombinePass = function(array, combineGrammar) {
-	let maxLength = CALC.GRAMMAR.GetMaxSearchLength(combineGrammar);
-	
-	let flag;
-	
-	for (let i = 0; i < array.length; i++) {
-		flag = false;
-		
-		for (let j = i; j < array.length; j++) {
-			if (flag)
-				break;
-			
-			if (j - i > maxLength)
-				break;
-			
-			let options = CALC.GRAMMAR.Options(array.slice(i,j));
-			
-			for (let [key, arrayOfArrays] of Object.entries(combineGrammar)) {
-				if (flag)
-						break;
-					
-				for (let k = 0; k < arrayOfArrays.length; k++) {
-					if (flag)
-						break;
-					
-					if (CALC.GRAMMAR.IsInOptions(options, arrayOfArrays[k])) {
-						array.splice(i, 0, (CALC.GRAMMAR.CombineSymbols(array.splice(i, j - i), key)));
-						i += i - j;
-						flag = true;
-					}
-				}
-			}
+		else {
+			let newValue = x.func(array[array.length - 1].value, arr[i].value);
+			array[array.length - 1] = new this.Token(x.joinToken, newValue);
+			prevType = x.joinToken;
 		}
 	}
 	
 	return array;
 }
 
-CALC.GRAMMAR.Insert = function(partialArray, command) {
+Calculator.prototype.ScanInsert = function(arr, iteration) {
+	function GetInsert(insertTable, prev, next) {
+		try {
+			return insertTable[iteration][prev][next];
+		} catch (err) {
+			return null;
+		}
+	}
+	
+	
+	let type;
+	let prevType = null;
+	let n = arr.length;
 	let array = []
 	
-	for (let i = 0; i < command.length; i++) {
-		if (command[i].constructor == InsertionIndex && command[i].func == null)
-			array.push(partialArray[command[i].index]);
-		else if (command[i].constructor == InsertionIndex) {
-			if (command[i].func == Operator && command[i].index != -1)
-				array.push(new Operator(command[i].params[0], partialArray[command[i].index].value));
-			else
-				array.push(new Operator(command[i].params[0], command[i].params[1]));
-		}
-		else {
-			array.push(command[i])
-		}
-	}
-	
-	return array;
-}
-
-CALC.GRAMMAR.InsertionPass = function(array, insertionGrammar, insertionCommands) {
-	let maxLength = CALC.GRAMMAR.GetMaxSearchLength(insertionGrammar);
-	
-	let flag;
-	
-	for (let i = 0; i < array.length; i++) {
-		flag = false;
-		
-		for (let j = i; j < array.length; j++) {
-			if (flag)
-				break;
-			
-			if (j - i > maxLength)
-				break;
-			
-			let options = CALC.GRAMMAR.Options(array.slice(i,j));
-			
-			for (let [key, arrayOfArrays] of Object.entries(insertionGrammar)) {
-				if (flag)
-						break;
-					
-				for (let k = 0; k < arrayOfArrays.length; k++) {
-					if (flag)
-						break;
-					
-					if (CALC.GRAMMAR.IsInOptions(options, arrayOfArrays[k])) {
-						let x = CALC.GRAMMAR.Insert(array.splice(i, j - i), insertionCommands[key]);
-						for (let l = 0; l < x.length; l++)
-							array.splice(i + l, 0, x[l]);
-						flag = true;
-					}
-				}
-			}
-		}
-	}
-	
-	return array;
-}
-
-CALC.ShuntingYard = function(array, operChars) {
-	let opStack = [];
-	let postfix = [];
-	
-	for (let i = 0; i < array.length; i++) {
-		if (array[i].type == "operand") {
-			postfix.push(array[i]);
-		}
-		
-		else if (array[i].type == "open_parenthesis") {
-			opStack.push(array[i]);
-		}
-		
-		else if (array[i].type == "close_parenthesis") {
-			let symbol = opStack.pop();
-			
-			while (symbol.type != "open_parenthesis") {
-				postfix.push(symbol);
-				symbol = opStack.pop();
-			}
-		}
-		
-		else if (array[i].type == "operator" && (opStack.length == 0 || opStack[opStack.length - 1].type == "open_parenthesis")) {
-			opStack.push(array[i]);
-		}
-		
-		// IF operator AND EITHER(higher (smaller) precedence OR BOTH(same precedence AND right associativity))
-		else if (array[i].type == "operator" &&
-				(CALC.GetPrecedence(array[i], operChars) < CALC.GetPrecedence(opStack[opStack.length - 1], operChars) ||
-				(CALC.GetPrecedence(array[i], operChars) == CALC.GetPrecedence(opStack[opStack.length - 1], operChars) &&
-				CALC.GetAssociativity(array[i], operChars) == -1))) {
-			opStack.push(array[i]);
-		}
-		
-		else {
-			let symbol = opStack.pop();
-			
-			// WHILE EITHER(lower (larger) precedence OR BOTH(same precedence AND left associativity))
-			while (opStack.length > 0 &&
-					((CALC.GetPrecedence(array[i], operChars) > CALC.GetPrecedence(opStack[opStack.length - 1], operChars) ||
-					(CALC.GetPrecedence(array[i], operChars) == CALC.GetPrecedence(opStack[opStack.length - 1], operChars) &&
-					CALC.GetAssociativity(array[i], operChars) == 1)))) {
-				postfix.push(symbol);
-				symbol = opStack.pop();
-			}
-			
-			postfix.push(symbol);
-			opStack.push(array[i]);
-		}
-	}
-	
-	while (opStack.length > 0)
-		postfix.push(opStack.pop());
-	
-	return postfix;
-}
-
-CALC.Parse = function(str) {
-	let baseSymbols = { "operand" : ["0","1","2","3","4","5","6","7","8","9"], "operator" : ["*","/","+","-"], "open_parenthesis" : ["("], "close_parenthesis": [")"] };
-	
-	let combineGrammar = { "operand" : [["operand", "operand"]] };
-	
-	let insertionCommands = {
-		"mult_insert" : [new InsertionIndex(0), new InsertionIndex(-1, Operator, false, "*"), new InsertionIndex(1)],
-		"unary" : [new InsertionIndex(0, Operator, false), new InsertionIndex(1, Operator, true)],
-		"binary" : [new InsertionIndex(0), new InsertionIndex(1, Operator, false), new InsertionIndex(2)]
-	};
-	
-	let insertionGrammar = {
-		"mult_insert" : [["close_parenthesis", "open_parenthesis"], ["operand", "open_parenthesis"]],
-		"unary" : [["start", "operator"], ["operator", "operator"]],
-		"binary" : [["operand", "operator", "operand"], ["close_parenthesis", "operator", "operand"], ["close_parenthesis", "operator", "open_parenthesis"], ["operand", "operator", "open_parenthesis"]]
-	};
-
-	
-	let operatorCharacteristics = [
-		{ operator : new Operator(true,  "-"), precedence : 1, associativity:  1, func : (a)    => -a    },
-		{ operator : new Operator(false, "*"), precedence : 2, associativity: -1, func : (a, b) => a * b },
-		{ operator : new Operator(false, "/"), precedence : 2, associativity: -1, func : (a, b) => a / b },
-		{ operator : new Operator(false, "+"), precedence : 3, associativity: -1, func : (a, b) => a + b },
-		{ operator : new Operator(false, "-"), precedence : 3, associativity: -1, func : (a, b) => a - b }
-	];
-	
-	let array = CALC.GRAMMAR.ToSymbolArray(str, baseSymbols);
-	let oldArray = [];
-	
-	while (!COMPARE.Equals(array, oldArray)) {
-		oldArray = array;
-		array = CALC.GRAMMAR.CombinePass(oldArray, combineGrammar);
-		array = CALC.GRAMMAR.InsertionPass(array, insertionGrammar, insertionCommands);
-	}
-	
-	// Remove the start symbol used in the case of the first symbol being unary.
-	array.shift();
-	
-	//console.log(array);
-
-	let postfix = CALC.ShuntingYard(array, operatorCharacteristics);
-	
-	return CALC.Solve(postfix, operatorCharacteristics);
-}
-
-CALC.GetPrecedence = function(operator, operChars) {
-	let characteristics = CALC.GetCharacteristics(operator, operChars);
-	if (characteristics == null)
-		return null;
-	
-	return characteristics.precedence;
-}
-
-CALC.GetAssociativity = function(operator, operChars) {
-	let characteristics = CALC.GetCharacteristics(operator, operChars);
-	if (characteristics == null)
-		return null;
-	
-	return characteristics.associativity;
-}
-
-CALC.GetCharacteristics = function(operator, operChars) {
-	for (let i = 0; i < operChars.length; i++) {
-		if (operChars[i].operator.unary == operator.unary && operChars[i].operator.value == operator.value)
-			return operChars[i];
-	}
-	
-	return null;
-}
-
-CALC.Solve = function(array, operChars) {
-	let stack = [];
-	
-	let n = array.length;
-	
+	// Foreach token in the array, if the token can be joined with others of the same type, do so.
 	for (let i = 0; i < n; i++) {
-		let symbol = array[i];
+		type = arr[i].type;
 		
-		if (symbol.type == "operand") {
-			stack.push(Number(symbol.value));
-		}
-		else if (symbol.type == "operator" && symbol.unary == true) {
-			let value = stack.pop();
-			value = CALC.GetCharacteristics(symbol, operChars).func(value);
-			stack.push(value);
+		let x = GetInsert(this.settings.InsertTokenTable, prevType, type);
+		
+		if (x == null) {
+			array.push(arr[i])
 		}
 		else {
-			let valueA = stack.pop();
-			let valueB = stack.pop();
-			value = CALC.GetCharacteristics(symbol, operChars).func(valueB, valueA);
-			stack.push(value);
+			array.push(new this.Token(x.insertToken, x.value));
+			array.push(arr[i])
+		}
+		prevType = type;
+	}
+	
+	return array;
+}
+
+Calculator.prototype.ScanRemove = function(arr, iteration) {
+	function GetRemove(removeTable, type) {
+		try {
+			return removeTable[iteration].includes(type)
+		} catch (err) {
+			return false;
 		}
 	}
 	
-	return stack.pop();
+	let type;
+	let n = arr.length;
+	let array = []
+	
+	// Foreach token in the array, if the token can be joined with others of the same type, do so.
+	for (let i = 0; i < n; i++) {
+		type = arr[i].type;
+		
+		if (!GetRemove(this.settings.RemoveTokenTable, type)) {
+			array.push(arr[i])
+		}
+	}
+	
+	return array;
 }
 
-
+Calculator.prototype.Scan = function(calculation) {
+	let arr = calculation.split('');
+	let iterations = Math.max(this.settings.JoinTokenTable.length, this.settings.InsertTokenTable.length);
+	
+	array = this.Tokenize(arr);
+	
+	for (let i = 0; i < iterations; i++) {
+		array = this.ScanCombine(array, i);
+		array = this.ScanInsert(array, i);
+		array = this.ScanRemove(array, i);
+	}
+	
+	return array;
+}
 

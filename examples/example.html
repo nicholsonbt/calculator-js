@@ -3,15 +3,47 @@
 	<head>
 		<script src="../calculator.js"></script>
 		<script src="../comparing-js/comparing.js"></script>
-
-		<script type="application/javascript">
-			window.addEventListener('load', function(e) {
-				console.log(CALC.Parse("-2*-(3+5*-1)-2(35/2)(4--2)")); // = -214
-				
-				
-			});
-		</script>
+		
+		<script src="./example.js"></script>
+		<link rel="stylesheet" href="./example.css">
 	</head>
 	<body>
+		<div id="container">
+			<div id="display">
+			</div>
+			<div id="controls">
+				<div class="controls-row">
+					<button class="button-operand" onclick="addChar('(', '(');">(</button>
+					<button class="button-operand" onclick="addChar(')', ')');">)</button>
+					<button class="button-operator" onclick="addChar('%', '%');">%</button>
+					<button class="button-clear" onclick="clearDisplay();">AC</button>
+				</div>
+				<div class="controls-row">
+					<button class="button-operand" onclick="addChar('7', '7');">7</button>
+					<button class="button-operand" onclick="addChar('8', '8');">8</button>
+					<button class="button-operand" onclick="addChar('9', '9');">9</button>
+					<button class="button-operator" onclick="addChar('÷', '/');">÷</button>
+				</div>
+				<div class="controls-row">
+					<button class="button-operand" onclick="addChar('4', '4');">4</button>
+					<button class="button-operand" onclick="addChar('5', '5');">5</button>
+					<button class="button-operand" onclick="addChar('6', '6');">6</button>
+					<button class="button-operator" onclick="addChar('×', '*');">×</button>
+				</div>
+				<div class="controls-row">
+					<button class="button-operand" onclick="addChar('1', '1');">1</button>
+					<button class="button-operand" onclick="addChar('2', '2');">2</button>
+					<button class="button-operand" onclick="addChar('3', '3');">3</button>
+					<button class="button-operator" onclick="addChar('-', '-');">-</button>
+				</div>
+				
+				<div class="controls-row">
+					<button class="button-operand" onclick="addChar('0', '0');">0</button>
+					<button class="button-operand" onclick="addChar('.', '.');">.</button>
+					<button class="button-equals" onclick="solve();">=</button>
+					<button class="button-operator" onclick="addChar('+', '+');">+</button>
+				</div>
+			</div>
+		</div>
 	</body>
 </html>
